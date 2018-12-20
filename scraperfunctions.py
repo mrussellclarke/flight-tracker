@@ -1,61 +1,66 @@
 from requests import get
 from requests.exceptions import RequestException
 from contextlib import closing
-import time
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from bs4 import BeautifulSoup
-import smtplib
-import time
-import imaplib
-import email
-import re
+import smtplib, imaplib, time, datetime, email, re
 
 class Flight:   #Flight Class used to store departure time, arrival time, and price data
     pass
 
-def find_flights(start, end, date): #function to create list of flights leaving on a day
+def find_flights(start, end, date): #function to create list of flight class objects leaving on a day
     driver = webdriver.Chrome("C:\\webdrivers\\chromedriver.exe")
-    driver.get('https://www.southwest.com')
 
-    oneway = driver.find_element_by_id('trip-type-one-way').click()
+    try:
+        driver.get('https://www.southwest.com')
 
-    origin = driver.find_element_by_id('air-city-departure')
-    origin.send_keys(start)
+        driver.find_element_by_id('trip-type-one-way').click()
 
-    destination = driver.find_element_by_id('air-city-arrival')
-    destination.send_keys(end)
+        origin = driver.find_element_by_id('air-city-departure')
+        origin.send_keys(start)
 
-    departure = driver.find_element_by_id('air-date-departure')
-    for i in range(0,5):
-        departure.send_keys(Keys.BACKSPACE)
-    departure.send_keys(date)
+        destination = driver.find_element_by_id('air-city-arrival')
+        destination.send_keys(end)
 
-    origin.submit()
+        departure = driver.find_element_by_id('air-date-departure')
+        for i in range(0,5):
+            departure.send_keys(Keys.BACKSPACE)
+        departure.send_keys(date)
 
-    time.sleep(5)
+        origin.submit()
 
-    driver.find_element_by_xpath("//input[@aria-label='Sort results by']").click()
+        time.sleep(6)
 
-    driver.find_element_by_xpath("//span[contains(text(), 'Price')]/parent::*").click()
+        driver.find_element_by_xpath("//input[@aria-label='Sort results by']").click()
 
-    times = driver.find_elements_by_class_name("time--value")
-    price = driver.find_elements_by_class_name("fare-button--value-total")
-    flight_class = []
+        driver.find_element_by_xpath("//span[contains(text(), 'Price')]/parent::*").click()
 
-    num = len(times)//2
+        times = driver.find_elements_by_class_name("time--value")
+        price = driver.find_elements_by_class_name("fare-button--value-total")
+        flight_class = []
 
-    for f in range(num):
-        xyz = Flight()
-        xyz.name = (times[f*2].get_attribute("innerText") + ' to ' + end)
-        xyz.departure = times[f*2].get_attribute("innerText")
-        xyz.arrival = times[f*2+1].get_attribute("innerText")
-        xyz.price = price[f*3+2].get_attribute("innerText")
-        flight_class.append(xyz)
+        num = len(price)//3
+        print('price size: ' +str(len(price)))
+        print('times size: ' +str(len(times)))
+
+        for f in range(num):
+            xyz = Flight()
+            xyz.name = (times[f*2].get_attribute("innerText") + ' to ' + end)
+            xyz.departure = times[f*2].get_attribute("innerText")
+            xyz.arrival = times[f*2+1].get_attribute("innerText")
+            xyz.price = price[f*3+2].get_attribute("innerText")
+            flight_class.append(xyz)
+
+        print('complete')
+
+    except:
+        print('Some error message')
 
     driver.quit()
 
     return flight_class
+
 
 def sendemail(subject, message, smtpserver='smtp.gmail.com:587'):
     header  = 'From: mcdevacct@gmail.com\n'
@@ -86,7 +91,7 @@ def check_mail():
             if 'outdate' not in keywords:
                 keywords['outdate'] = word
             else:
-                keywords['backdate'] = word
+                keywords['indate'] = word
         elif len(word) == 3:
             # re.match(r'[A-z]{3}', word, re.I):
             if 'departure' not in keywords:
@@ -119,31 +124,26 @@ def readmail():
             email_subject =  email_message['subject']
             email_body = body.decode('utf-8')
 
-    # for part in email_message.walk():
-    #     if part.get_content_type() == "multipart/alternative":
-    #         print(part)
-    #
-    # i = len(data[0].split())
-    #
-    # for x in range(i):
-    #     latest_email_uid = data[0].split()[x]
-    #     result, email_data = mail.uid('fetch', latest_email_uid, '(RFC822)')
-    #     # fetch email body for given ID
-    #
-    #     raw_email = email_data[0][1]
-    #     raw_email_string = raw_email.decode('utf-8')
-    #
-    #     email_message = email.message_from_string(raw_email_string)
-    #
-    #     for part in email_message.walk():
-    #         if part.get_content_type() == "text/plain":
-    #             body = part.get_payload(decode=True)
-    #
-    #             print('From: ' +email_message['from'])
-    #             print('Subject: ' +email_message['subject'])
-    #             print(body)
-    #             # save_string = str("D:Dumpgmailemail_" + str(x) + ".eml")
-    #         else:
-    #             continue
-
     return {'ef': email_from, 'es': email_subject, 'eb': email_body}
+
+def new_mail(x, oldCheck): #check inbox for new flight email
+    if x > 0:
+        newCheck = check_mail()
+
+        if (newCheck['departure'] == oldCheck['departure']
+        and newCheck['arrival'] == oldCheck['arrival']
+        and newCheck['outdate'] == oldCheck['outdate']):
+            print('No new mail')
+            time.sleep(5)
+            new_mail(1, oldCheck)
+        else:
+            print('New mail!')
+
+def new_price(fday): #checks to see if date of flight has happened
+    cday = str(datetime.datetime.now().month) + '/' + str(datetime.datetime.now().day)
+
+    if fday != cday:
+        time.sleep(86400)
+        new_price(fday)
+    else:
+        return
